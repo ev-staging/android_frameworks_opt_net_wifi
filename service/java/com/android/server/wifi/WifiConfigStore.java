@@ -1454,19 +1454,42 @@ public class WifiConfigStore extends IpConfigStore {
                 config.setIpAssignment(IpAssignment.DHCP);
                 config.setProxySettings(ProxySettings.NONE);
 
-                if (mNetworkIds.containsKey(configKey(config))) {
-                    // That SSID is already known, just ignore this duplicate entry
-                    if (showNetworks) localLog("discarded duplicate network ", config.networkId);
-                } else if(config.isValid()){
+            if (mNetworkIds.containsKey(configKey(config))) {
+                // That SSID is already known, just ignore this duplicate entry
+                if (showNetworks)
+                    localLog("Duplicate network found ", config.networkId);
+
+                Integer n = mNetworkIds.get(configKey(config));
+                WifiConfiguration tempCfg = mConfiguredNetworks.get(n);
+
+                if ( (tempCfg != null &&
+                      tempCfg.status != WifiConfiguration.Status.CURRENT) &&
+                      config.status == WifiConfiguration.Status.CURRENT) {
+
+                    // Clear the existing entry, we don't need it
+                    mConfiguredNetworks.remove(tempCfg.networkId);
+                    mNetworkIds.remove(configKey(tempCfg));
+
+                    // Add current entry to the list
                     mConfiguredNetworks.put(config.networkId, config);
                     mNetworkIds.put(configKey(config), config.networkId);
-                    if (showNetworks) localLog("loaded configured network", config.networkId);
-                } else {
-                    if (showNetworks) log("Ignoring loaded configured for network " + config.networkId
-                        + " because config are not valid");
-                }
-            }
 
+                    // Enable AutoJoin status and indicate the network as
+                    // duplicate The duplicateNetwork flag will be used
+                    // to decide whether to restore network configurations
+                    // in readNetworkHistory() along with IP and proxy settings
+                    config.setAutoJoinStatus(WifiConfiguration.AUTO_JOIN_ENABLED);
+                    config.duplicateNetwork = true;
+                }
+            } else if (config.isValid()) {
+                mConfiguredNetworks.put(config.networkId, config);
+                mNetworkIds.put(configKey(config), config.networkId);
+                if (showNetworks) localLog("loaded configured network", config.networkId);
+            } else {
+                if (showNetworks) log("Ignoring loaded configured for network " + config.networkId
+                    + " because config are not valid");
+            }
+            }
             done = (lines.length == 1);
         }
 
@@ -1913,7 +1936,7 @@ public class WifiConfigStore extends IpConfigStore {
                     rssi = WifiConfiguration.INVALID_RSSI;
                     caps = null;
 
-                } else if (config != null) {
+                } else if (config != null && config.duplicateNetwork == false) {
                     if (key.startsWith(SSID_KEY)) {
                         ssid = key.replace(SSID_KEY, "");
                         ssid = ssid.replace(SEPARATOR_KEY, "");
@@ -2606,11 +2629,14 @@ public class WifiConfigStore extends IpConfigStore {
             int id = networks.keyAt(i);
             WifiConfiguration config = mConfiguredNetworks.get(mNetworkIds.get(id));
 
-
             if (config == null || config.autoJoinStatus == WifiConfiguration.AUTO_JOIN_DELETED ||
                     config.ephemeral) {
                 loge("configuration found for missing network, nid=" + id
                         +", ignored, networks.size=" + Integer.toString(networks.size()));
+            } else if (config != null && config.duplicateNetwork == true) {
+                if (VDBG)
+                    loge("Network configuration is not updated for duplicate network id="
+                          + config.networkId + " SSID=" + config.SSID);
             } else {
                 config.setIpConfiguration(networks.valueAt(i));
             }
