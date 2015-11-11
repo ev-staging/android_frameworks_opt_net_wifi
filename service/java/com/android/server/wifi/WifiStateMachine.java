@@ -847,6 +847,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     /* used to indicated RSSI threshold breach in hw */
     static final int CMD_RSSI_THRESHOLD_BREACH                          = BASE + 164;
 
+    /* When there are saved networks and PNO fails, we do a periodic scan to notify
+        a saved/open network in suspend mode */
+    static final int CMD_PNO_PERIODIC_SCAN                              = BASE + 165;
+
     /* Wifi state machine modes of operation */
     /* CONNECT_MODE - connect to any 'known' AP when it becomes available */
     public static final int CONNECT_MODE = 1;
