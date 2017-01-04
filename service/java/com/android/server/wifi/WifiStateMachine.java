@@ -1739,6 +1739,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     public void setSupplicantRunning(boolean enable) {
         if (enable) {
+            WifiNative.setApMode(false);
             sendMessage(CMD_START_SUPPLICANT);
         } else {
             sendMessage(CMD_STOP_SUPPLICANT);
@@ -1750,6 +1751,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     public void setHostApRunning(WifiConfiguration wifiConfig, boolean enable) {
         if (enable) {
+            WifiNative.setApMode(true);
             sendMessage(CMD_START_AP, wifiConfig);
         } else {
             sendMessage(CMD_STOP_AP);
@@ -4306,6 +4308,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             logStateAndMessage(message, this);
             switch (message.what) {
                 case CMD_START_SUPPLICANT:
+                   /* Stop a running supplicant after a runtime restart
+                    * Avoids issues with drivers that do not handle interface down
+                    * on a running supplicant properly.
+                    */
+                    mWifiMonitor.killSupplicant(mP2pSupported);
+
                     if (mWifiNative.loadDriver()) {
                         try {
                             mNwService.wifiFirmwareReload(mInterfaceName, "STA");
@@ -4337,12 +4345,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         } catch (IllegalStateException ie) {
                             loge("Unable to change interface settings: " + ie);
                         }
-
-                       /* Stop a running supplicant after a runtime restart
-                        * Avoids issues with drivers that do not handle interface down
-                        * on a running supplicant properly.
-                        */
-                        mWifiMonitor.killSupplicant(mP2pSupported);
 
                         if (mWifiNative.startHal() == false) {
                             /* starting HAL is optional */
